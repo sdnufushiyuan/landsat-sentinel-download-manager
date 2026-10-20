@@ -1,0 +1,20 @@
+{
+  "project": "your-earth-engine-project",
+  "start": "2013-04-11",
+  "end_exclusive": "2026-10-10",
+  "output_root": "/nasdata/native-optical/Landsat_sentinel数据",
+  "require_mount": "/nasdata",
+  "proxy": "http://127.0.0.1:8118",
+  "workers": 2,
+  "s2_resolution": 30,
+  "aerosol": "low",
+  "s2_max_aot": null,
+  "regions": [
+    {"code": "SDR", "roi": "/path/ROI/SDR/roi.shp", "crs": "EPSG:32650", "area_m2": 1},
+    {"code": "REM", "roi": "/path/ROI/REM/roi.shp", "crs": "EPSG:32630", "area_m2": 1},
+    {"code": "MES", "roi": "/path/ROI/MES/roi.shp", "crs": "EPSG:5070", "area_m2": 1},
+    {"code": "RIS", "roi": "/path/ROI/RIS/roi.shp", "crs": "EPSG:32614", "area_m2": 1},
+    {"code": "OZN", "roi": "/path/ROI/OZN/roi.shp", "crs": "EPSG:32755", "area_m2": 1},
+    {"code": "TXS", "roi": "/path/ROI/TXS/roi.shp", "crs": "EPSG:32614", "area_m2": 1}
+  ]
+}

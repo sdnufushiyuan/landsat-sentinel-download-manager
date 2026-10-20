@@ -1,0 +1,22 @@
+[Unit]
+Description=Independent Landsat 8/9 and Sentinel-2 native SR archive
+After=network-online.target hls-download-proxy.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/Landsat_sentinel数据
+ExecStart=/path/to/.venv/bin/python -u /path/to/Landsat_sentinel数据/archive.py --config /path/to/Landsat_sentinel数据/config.local.json --inventory /path/to/Landsat_sentinel数据/runs/inventory.json --run
+Environment=OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 GDAL_NUM_THREADS=1 OPTICAL_MIN_FREE_GIB=100
+UMask=0077
+Nice=10
+Restart=on-failure
+RestartPreventExitStatus=1 130
+RestartSec=300
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=45
+
+[Install]
+WantedBy=default.target
