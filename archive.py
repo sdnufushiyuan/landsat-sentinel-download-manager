@@ -53,6 +53,9 @@ def read_config(path):
         raise ValueError("输出根目录必须为绝对路径")
     if type(config.get("workers", 2)) is not int or not 1 <= config.get("workers", 2) <= 8:
         raise ValueError("workers必须为1–8")
+    limit = config.get("max_mib_s", 0)
+    if type(limit) not in (float, int) or not math.isfinite(limit) or limit < 0:
+        raise ValueError("max_mib_s必须是非负有限数")
     resolution = config.get("s2_resolution", 30)
     if resolution not in (10, 20, 30):
         raise ValueError("S2输出网格必须为10、20或30米")
@@ -144,6 +147,8 @@ def command(config, job, verify=False):
         "--resolution", str(job["resolution"]), "--workers", str(config.get("workers", 2)),
         "--max-scenes", "10000", "--proxy", config.get("proxy", "http://127.0.0.1:8118"),
         "--aerosol", config.get("aerosol", "low")]
+    if config.get("max_mib_s", 0):
+        argv.extend(["--max-mib-s", str(config["max_mib_s"])])
     for key, flag in (("project", "--project"), ("require_mount", "--require-mount"), ("mount_source", "--mount-source")):
         if config.get(key):
             argv.extend([flag, str(config[key])])

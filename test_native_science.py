@@ -60,6 +60,7 @@ class EE:
 class ScienceTests(unittest.TestCase):
     def tearDown(self):
         optical.configure("L8")
+        optical.MAX_TRANSFER_BPS = 0
     def source(self, sensor, qa=64, aq=64, sat=0):
         if sensor == "S2":
             return Image([1000, 3000, 2000, qa, aq], ["B4", "B8A", "B12", "SCL", "AOT"])
@@ -104,6 +105,18 @@ class ScienceTests(unittest.TestCase):
             tiles = optical.make_tiles(box(5, 5, 1005, 1005), 64)
             self.assertEqual(tiles[0].transform[0], size)
         with self.assertRaises(optical.DownloadError): optical.configure("L8", 10)
+    def test_bandwidth_cap_waits_only_for_deficit_and_is_cancellable(self):
+        import threading
+        optical.MAX_TRANSFER_BPS = 100
+        with patch.object(optical.time, 'monotonic', return_value=11), patch.object(optical.time, 'sleep') as sleep:
+            optical.pace_transfer(200, 10)
+            sleep.assert_called_once_with(1)
+            sleep.reset_mock()
+            optical.pace_transfer(50, 10)
+            sleep.assert_not_called()
+            cancelled = threading.Event()
+            cancelled.set()
+            with self.assertRaises(optical.DownloadCancelled): optical.pace_transfer(200, 10, cancelled)
     def test_real_geotiff_rejects_wrong_quality_or_wrong_index(self):
         with tempfile.TemporaryDirectory() as directory:
             for sensor, qa, aq in (("L8", 64, 64), ("L9", 64, 64), ("S2", 4, .12)):

@@ -34,6 +34,7 @@ CATALOG = {
 SENSORS = dict(CATALOG)
 ACTIVE_SENSOR = "L8"
 MAX_AOT = None
+MAX_TRANSFER_BPS = 0.0
 BANDS = ("red", "nir", "swir2", "NDVI", "STR", "QA_PIXEL", "SR_QA_AEROSOL", "QA_RADSAT")
 
 
@@ -80,6 +81,18 @@ TRANSFER_RETRY_DELAYS = (5, 15, 30, 60, 120)
 def check_download_cancelled(cancel_event):
     if cancel_event is not None and cancel_event.is_set():
         raise DownloadCancelled("当前景下载已取消，已校验文件保留。")
+
+
+def pace_transfer(transferred, started, cancel_event=None):
+    """Optional per-worker bandwidth cap; never changes exported pixels."""
+    if MAX_TRANSFER_BPS <= 0:
+        return
+    delay = transferred / MAX_TRANSFER_BPS - (time.monotonic() - started)
+    if delay > 0:
+        if cancel_event is None:
+            time.sleep(delay)
+        elif cancel_event.wait(delay):
+            raise DownloadCancelled("限速等待期间当前景已取消，已校验文件保留。")
 
 
 def get_download_url(image, parameters, url_lock=None, cancel_event=None):
@@ -778,7 +791,8 @@ def download_tile(image, tile, path, crs, session, guard, recipe_hash, aerosol, 
                     committed = False
                     try:
                         with stream:
-                            chunks = iter(response.iter_content(1024 * 1024))
+                            started, transferred = time.monotonic(), 0
+                            chunks = iter(response.iter_content(65536 if MAX_TRANSFER_BPS > 0 else 1024 * 1024))
                             while True:
                                 check_download_cancelled(cancel_event)
                                 remote_phase = True
@@ -792,6 +806,8 @@ def download_tile(image, tile, path, crs, session, guard, recipe_hash, aerosol, 
                                 if chunk:
                                     guard.check()
                                     stream.write(chunk)
+                                    transferred += len(chunk)
+                                    pace_transfer(transferred, started, cancel_event)
                         check_download_cancelled(cancel_event)
                         guard.check()
                         selection_tags = {"selection_hash": selection_hash} if selection_hash else {}
@@ -1022,6 +1038,7 @@ def parser():
     result.add_argument("--sensor", required=True, choices=tuple(CATALOG))
     result.add_argument("--resolution", type=int, choices=(10, 20, 30), default=30)
     result.add_argument("--s2-max-aot", type=float, help="可选物理AOT上限；S2没有HLS的气溶胶分类，不默认强行等同")
+    result.add_argument("--max-mib-s", type=float, default=0, help="每路块传输MiB/s上限，0为不限速；不改变科学配方")
     result.add_argument("--roi", required=True, help="执行此脚本的机器上的 .shp 或 .zip 路径")
     result.add_argument("--start", required=True, help="开始日期 YYYY-MM-DD（包含）")
     result.add_argument("--end", required=True, help="结束日期 YYYY-MM-DD（不包含）")
@@ -1050,6 +1067,11 @@ def parser():
 
 
 def run(args):
+    global MAX_TRANSFER_BPS
+    limit = getattr(args, "max_mib_s", 0)
+    if not math.isfinite(limit) or limit < 0:
+        raise DownloadError("--max-mib-s 必须是非负有限数。")
+    MAX_TRANSFER_BPS = limit * 1024 * 1024
     configure(args.sensor, args.resolution, args.s2_max_aot)
     # Fixed catalog factors are applied by build_image; never user-overridden.
     args.reflectance_scale = 1.0
